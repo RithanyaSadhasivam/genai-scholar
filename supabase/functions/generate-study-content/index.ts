@@ -81,13 +81,35 @@ serve(async (req) => {
     if (type === 'topics') {
       // Extract JSON array from the response
       const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
-      result = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      if (jsonMatch) {
+        try {
+          result = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+          console.error('JSON parse error:', e);
+          // Clean the JSON string by removing invalid escape sequences
+          const cleanedJson = jsonMatch[0].replace(/\\u[\dA-Fa-f]{0,3}(?![\dA-Fa-f])/g, '');
+          result = JSON.parse(cleanedJson);
+        }
+      } else {
+        result = [];
+      }
     } else if (type === 'notes') {
       result = generatedText;
     } else if (type === 'quiz' || type === 'flashcards') {
       // Extract JSON array from the response
       const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
-      result = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      if (jsonMatch) {
+        try {
+          result = JSON.parse(jsonMatch[0]);
+        } catch (e) {
+          console.error('JSON parse error:', e);
+          // Clean the JSON string by removing invalid escape sequences
+          const cleanedJson = jsonMatch[0].replace(/\\u[\dA-Fa-f]{0,3}(?![\dA-Fa-f])/g, '');
+          result = JSON.parse(cleanedJson);
+        }
+      } else {
+        result = [];
+      }
     }
 
     return new Response(
