@@ -78,38 +78,61 @@ serve(async (req) => {
 
     // Parse the response based on type
     let result;
+
+    // Helper to safely extract a JSON array from model output
+    const extractJsonArray = (text: string) => {
+      const match = text.match(/\[[\s\S]*\]/);
+      if (!match) return [];
+      const raw = match[0];
+
+      const tryParse = (s: string) => {
+        try {
+          return JSON.parse(s);
+        } catch (_e) {
+          return null;
+        }
+      };
+
+      // 1) Try as-is
+      let parsed: any = tryParse(raw);
+      if (parsed !== null) return parsed;
+
+      // 2) Clean common issues and try again
+      let cleaned = raw
+        // strip code fences if present
+        .replace(/```json|```/g, '')
+        // remove non-standard Unicode escapes like \u{1F4A1}
+        .replace(/\\u\{[0-9a-fA-F]+\}/g, '')
+        // remove short/incomplete \u sequences
+        .replace(/\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])/g, '')
+        // remove lone surrogate escapes
+        .replace(/\\uD[0-9A-Fa-f]{3}/g, '')
+        // escape stray backslashes not part of a valid escape sequence
+        .replace(/\\(?!["\\\/bfnrtu])/g, "\\\\");
+
+      parsed = tryParse(cleaned);
+      if (parsed !== null) return parsed;
+
+      // 3) Last resort: remove all unicode escapes
+      cleaned = cleaned.replace(/\\u[0-9A-Fa-f]{4}/g, '');
+      parsed = tryParse(cleaned);
+      if (parsed !== null) return parsed;
+
+      console.error('Failed to parse JSON array after sanitization');
+      return [];
+    };
+
     if (type === 'topics') {
-      // Extract JSON array from the response
-      const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        try {
-          result = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          console.error('JSON parse error:', e);
-          // Clean the JSON string by removing invalid escape sequences
-          const cleanedJson = jsonMatch[0].replace(/\\u[\dA-Fa-f]{0,3}(?![\dA-Fa-f])/g, '');
-          result = JSON.parse(cleanedJson);
-        }
-      } else {
-        result = [];
-      }
+      result = extractJsonArray(generatedText);
     } else if (type === 'notes') {
-      result = generatedText;
+      const cleanedNotes = generatedText
+        .replace(/\\u\{[0-9a-fA-F]+\}/g, '')
+        .replace(/\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])/g, '')
+        .replace(/\\uD[0-9A-Fa-f]{3}/g, '')
+        .replace(/\\(?!["\\\\\/bfnrtu])/g, "\\\\");
+      result = cleanedNotes;
     } else if (type === 'quiz' || type === 'flashcards') {
-      // Extract JSON array from the response
-      const jsonMatch = generatedText.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        try {
-          result = JSON.parse(jsonMatch[0]);
-        } catch (e) {
-          console.error('JSON parse error:', e);
-          // Clean the JSON string by removing invalid escape sequences
-          const cleanedJson = jsonMatch[0].replace(/\\u[\dA-Fa-f]{0,3}(?![\dA-Fa-f])/g, '');
-          result = JSON.parse(cleanedJson);
-        }
-      } else {
-        result = [];
-      }
+      result = extractJsonArray(generatedText);
     }
 
     return new Response(
