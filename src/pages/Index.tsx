@@ -63,6 +63,9 @@ const Index = () => {
       const generatedTopics = topicsResponse.data.result;
       setTopics(generatedTopics);
 
+      // Add a short delay to avoid rate limits and reduce gateway burst
+      await new Promise((r) => setTimeout(r, 300));
+
       // Generate notes
       const notesResponse = await supabase.functions.invoke("generate-study-content", {
         body: { content, type: "notes" },
@@ -70,12 +73,16 @@ const Index = () => {
       if (notesResponse.error) throw notesResponse.error;
       setNotes(notesResponse.data.result);
 
+      await new Promise((r) => setTimeout(r, 300));
+
       // Generate quiz
       const quizResponse = await supabase.functions.invoke("generate-study-content", {
         body: { content, type: "quiz" },
       });
       if (quizResponse.error) throw quizResponse.error;
       setQuiz(quizResponse.data.result);
+
+      await new Promise((r) => setTimeout(r, 300));
 
       // Generate flashcards
       const flashcardsResponse = await supabase.functions.invoke("generate-study-content", {

@@ -6,6 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import * as pdfjsLib from "pdfjs-dist";
+// Use Vite's ?url to load worker as a URL string
+// @ts-ignore - Vite will provide the URL string, types may not include this query import
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min?url";
+(pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface UploadSectionProps {
   onContentSubmit: (content: string, title: string, fileType?: string) => void;
@@ -17,6 +22,25 @@ export const UploadSection = ({ onContentSubmit, loading }: UploadSectionProps) 
   const [title, setTitle] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const { toast } = useToast();
+
+  const extractPdfText = async (file: File): Promise<string> => {
+    try {
+      const data = await file.arrayBuffer();
+      const loadingTask = (pdfjsLib as any).getDocument({ data });
+      const pdf = await loadingTask.promise;
+      let fullText = '';
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((it: any) => it.str).join(' ');
+        fullText += pageText + '\n\n';
+      }
+      return fullText.trim();
+    } catch (e) {
+      console.error('PDF parse error:', e);
+      return '';
+    }
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -56,14 +80,29 @@ export const UploadSection = ({ onContentSubmit, loading }: UploadSectionProps) 
     }
 
     try {
-      const text = await file.text();
+      let text = '';
+      if (file.type === 'application/pdf') {
+        text = await extractPdfText(file);
+        if (!text) {
+          toast({
+            title: "Could not read PDF",
+            description: "We couldn't extract text from this PDF. Try another file or paste the text.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        text = await file.text();
+      }
+
       setContent(text);
       setTitle(file.name.replace(/\.[^/.]+$/, ""));
       toast({
         title: "File loaded",
-        description: `${file.name} has been loaded successfully.`,
+        description: `${file.name} has been processed successfully.`,
       });
     } catch (error) {
+      console.error('File read error:', error);
       toast({
         title: "Error reading file",
         description: "Could not read the file. Please try again.",
