@@ -179,29 +179,26 @@ export const ResultsSection = ({
             </CardHeader>
             <CardContent className="space-y-4">
               <div
-                className="relative min-h-[300px] cursor-pointer perspective-1000"
+                className="relative min-h-[300px] cursor-pointer"
                 onClick={() => setShowAnswer(!showAnswer)}
               >
-                <div
-                  className={`absolute inset-0 transition-all duration-500 transform-style-3d ${
-                    showAnswer ? "rotate-y-180" : ""
-                  }`}
-                >
-                  <div className="absolute inset-0 backface-hidden">
-                    <div className="h-full flex items-center justify-center p-8 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg border-2 border-primary">
-                      <p className="text-xl text-center font-medium">
+                {!showAnswer ? (
+                  <div className="h-[300px] flex items-center justify-center p-8 bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg border-2 border-primary animate-fade-in">
+                    <div className="w-full overflow-y-auto max-h-[250px]">
+                      <p className="text-xl text-center font-medium break-words">
                         {flashcards[currentFlashcard]?.question}
                       </p>
                     </div>
                   </div>
-                  <div className="absolute inset-0 backface-hidden rotate-y-180">
-                    <div className="h-full flex items-center justify-center p-8 bg-gradient-to-br from-accent/10 to-primary/10 rounded-lg border-2 border-accent">
-                      <p className="text-lg text-center">
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center p-8 bg-gradient-to-br from-accent/10 to-primary/10 rounded-lg border-2 border-accent animate-fade-in">
+                    <div className="w-full overflow-y-auto max-h-[250px]">
+                      <p className="text-lg text-center break-words">
                         {flashcards[currentFlashcard]?.answer}
                       </p>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
               <div className="flex gap-2 justify-between">
                 <Button
