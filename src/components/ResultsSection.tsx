@@ -2,7 +2,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BookText, Brain, Layers, Save, Check, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { BookText, Brain, Layers, Save, Check, X, Code, Lightbulb, Eye } from "lucide-react";
 import { useState } from "react";
 
 interface Quiz {
@@ -17,11 +18,21 @@ interface Flashcard {
   answer: string;
 }
 
+interface CodingExercise {
+  title: string;
+  difficulty: string;
+  description: string;
+  starterCode: string;
+  solution: string;
+  hints: string[];
+}
+
 interface ResultsSectionProps {
   topics: string[];
   notes: string;
   quiz: Quiz[];
   flashcards: Flashcard[];
+  codingExercises?: CodingExercise[];
   onSave: () => void;
   saving: boolean;
 }
@@ -31,6 +42,7 @@ export const ResultsSection = ({
   notes,
   quiz,
   flashcards,
+  codingExercises = [],
   onSave,
   saving,
 }: ResultsSectionProps) => {
@@ -38,6 +50,10 @@ export const ResultsSection = ({
   const [showAnswer, setShowAnswer] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<{ [key: number]: string }>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
+  const [currentExercise, setCurrentExercise] = useState(0);
+  const [userCode, setUserCode] = useState<{ [key: number]: string }>({});
+  const [showHints, setShowHints] = useState<{ [key: number]: boolean }>({});
+  const [showSolution, setShowSolution] = useState<{ [key: number]: boolean }>({});
 
   const handleQuizAnswer = (questionIndex: number, answer: string) => {
     setQuizAnswers({ ...quizAnswers, [questionIndex]: answer });
@@ -79,7 +95,7 @@ export const ResultsSection = ({
       )}
 
       <Tabs defaultValue="notes" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className={`grid w-full ${codingExercises.length > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="notes">
             <BookText className="w-4 h-4 mr-2" />
             Notes
@@ -92,6 +108,12 @@ export const ResultsSection = ({
             <Layers className="w-4 h-4 mr-2" />
             Flashcards
           </TabsTrigger>
+          {codingExercises.length > 0 && (
+            <TabsTrigger value="coding">
+              <Code className="w-4 h-4 mr-2" />
+              Coding
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="notes">
@@ -227,6 +249,111 @@ export const ResultsSection = ({
             </CardContent>
           </Card>
         </TabsContent>
+
+        {codingExercises.length > 0 && (
+          <TabsContent value="coding">
+            <Card>
+              <CardHeader>
+                <CardTitle>Coding Practice</CardTitle>
+                <CardDescription>
+                  Exercise {currentExercise + 1} of {codingExercises.length}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {codingExercises[currentExercise] && (
+                  <>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">
+                          {codingExercises[currentExercise].title}
+                        </h3>
+                        <Badge 
+                          variant={
+                            codingExercises[currentExercise].difficulty === 'easy' 
+                              ? 'default' 
+                              : codingExercises[currentExercise].difficulty === 'medium'
+                              ? 'secondary'
+                              : 'destructive'
+                          }
+                        >
+                          {codingExercises[currentExercise].difficulty}
+                        </Badge>
+                      </div>
+                      <p className="text-muted-foreground">
+                        {codingExercises[currentExercise].description}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Your Code</label>
+                      <Textarea
+                        value={userCode[currentExercise] || codingExercises[currentExercise].starterCode}
+                        onChange={(e) => setUserCode({ ...userCode, [currentExercise]: e.target.value })}
+                        rows={12}
+                        className="font-mono text-sm"
+                        placeholder="Write your code here..."
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowHints({ ...showHints, [currentExercise]: !showHints[currentExercise] })}
+                      >
+                        <Lightbulb className="w-4 h-4 mr-2" />
+                        {showHints[currentExercise] ? 'Hide Hints' : 'Show Hints'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowSolution({ ...showSolution, [currentExercise]: !showSolution[currentExercise] })}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        {showSolution[currentExercise] ? 'Hide Solution' : 'Show Solution'}
+                      </Button>
+                    </div>
+
+                    {showHints[currentExercise] && (
+                      <div className="p-4 bg-muted rounded-lg space-y-2">
+                        <p className="font-medium">Hints:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          {codingExercises[currentExercise].hints.map((hint, i) => (
+                            <li key={i} className="text-sm text-muted-foreground">{hint}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {showSolution[currentExercise] && (
+                      <div className="p-4 bg-muted rounded-lg space-y-2">
+                        <p className="font-medium">Solution:</p>
+                        <pre className="text-sm font-mono overflow-x-auto p-3 bg-background rounded">
+                          {codingExercises[currentExercise].solution}
+                        </pre>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 justify-between pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentExercise(Math.max(0, currentExercise - 1))}
+                        disabled={currentExercise === 0}
+                      >
+                        Previous Exercise
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentExercise(Math.min(codingExercises.length - 1, currentExercise + 1))}
+                        disabled={currentExercise === codingExercises.length - 1}
+                      >
+                        Next Exercise
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

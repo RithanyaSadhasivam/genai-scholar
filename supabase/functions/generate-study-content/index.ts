@@ -35,6 +35,9 @@ serve(async (req) => {
     } else if (type === 'flashcards') {
       systemPrompt = 'You are an educational AI assistant that creates effective flashcards for studying.';
       userPrompt = `Create 15 flashcards from the following content. Each flashcard should have a clear question and a concise answer. Return a JSON array with objects containing: question and answer:\n\n${content}`;
+    } else if (type === 'coding') {
+      systemPrompt = 'You are an educational AI assistant that creates coding exercises for programming topics.';
+      userPrompt = `Analyze the following content and determine if it is related to programming or coding. If yes, create 8 coding practice exercises with varying difficulty levels (easy, medium, hard). Each exercise should include: title, difficulty, description, starterCode, solution, and hints (array of strings). Return a JSON array. If the content is not programming-related, return an empty array []:\n\n${content}`;
     }
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -131,7 +134,7 @@ serve(async (req) => {
         .replace(/\\uD[0-9A-Fa-f]{3}/g, '')
         .replace(/\\(?!["\\\\\/bfnrtu])/g, "\\\\");
       result = cleanedNotes;
-    } else if (type === 'quiz' || type === 'flashcards') {
+    } else if (type === 'quiz' || type === 'flashcards' || type === 'coding') {
       result = extractJsonArray(generatedText);
     }
 

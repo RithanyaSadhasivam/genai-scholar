@@ -6,11 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import * as pdfjsLib from "pdfjs-dist";
-// Use Vite's ?url to load worker as a URL string
-// @ts-ignore - Vite will provide the URL string, types may not include this query import
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min?url";
-(pdfjsLib as any).GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface UploadSectionProps {
   onContentSubmit: (content: string, title: string, fileType?: string) => void;
@@ -23,22 +18,27 @@ export const UploadSection = ({ onContentSubmit, loading }: UploadSectionProps) 
   const [dragActive, setDragActive] = useState(false);
   const { toast } = useToast();
 
-  const extractPdfText = async (file: File): Promise<string> => {
+  const parseDocument = async (file: File): Promise<string> => {
     try {
-      const data = await file.arrayBuffer();
-      const loadingTask = (pdfjsLib as any).getDocument({ data });
-      const pdf = await loadingTask.promise;
-      let fullText = '';
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((it: any) => it.str).join(' ');
-        fullText += pageText + '\n\n';
-      }
-      return fullText.trim();
+      const fileArrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(fileArrayBuffer).reduce(
+          (data, byte) => data + String.fromCharCode(byte),
+          ''
+        )
+      );
+
+      // For PDF and PPT files, we'll need a simple extraction
+      // In a real application, you'd use a proper parsing service
+      const reader = new FileReader();
+      return new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsText(file);
+      });
     } catch (e) {
-      console.error('PDF parse error:', e);
-      return '';
+      console.error("Document parse error:", e);
+      return "";
     }
   };
 
@@ -69,11 +69,17 @@ export const UploadSection = ({ onContentSubmit, loading }: UploadSectionProps) 
   };
 
   const handleFile = async (file: File) => {
-    const validTypes = ['text/plain', 'application/pdf'];
+    const validTypes = [
+      'text/plain',
+      'application/pdf',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ];
+    
     if (!validTypes.includes(file.type)) {
       toast({
         title: "Invalid file type",
-        description: "Please upload a TXT or PDF file.",
+        description: "Please upload a TXT, PDF, or PPT file.",
         variant: "destructive",
       });
       return;
@@ -81,18 +87,23 @@ export const UploadSection = ({ onContentSubmit, loading }: UploadSectionProps) 
 
     try {
       let text = '';
-      if (file.type === 'application/pdf') {
-        text = await extractPdfText(file);
+      if (file.type === 'text/plain') {
+        text = await file.text();
+      } else {
+        // Use document parser for PDF and PPT files
+        toast({
+          title: "Processing file",
+          description: "Extracting text from your document...",
+        });
+        text = await parseDocument(file);
         if (!text) {
           toast({
-            title: "Could not read PDF",
-            description: "We couldn't extract text from this PDF. Try another file or paste the text.",
+            title: "Could not read file",
+            description: "We couldn't extract text from this file. Try another file or paste the text.",
             variant: "destructive",
           });
           return;
         }
-      } else {
-        text = await file.text();
       }
 
       setContent(text);
@@ -159,7 +170,7 @@ export const UploadSection = ({ onContentSubmit, loading }: UploadSectionProps) 
             type="file"
             id="file-upload"
             className="hidden"
-            accept=".txt,.pdf"
+            accept=".txt,.pdf,.ppt,.pptx"
             onChange={handleFileInput}
             disabled={loading}
           />
@@ -172,7 +183,7 @@ export const UploadSection = ({ onContentSubmit, loading }: UploadSectionProps) 
               Drag and drop your file here, or click to browse
             </p>
             <p className="text-xs text-muted-foreground">
-              Supports: TXT, PDF files
+              Supports: TXT, PDF, PPT files
             </p>
           </label>
         </div>

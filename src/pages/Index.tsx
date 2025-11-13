@@ -19,6 +19,7 @@ const Index = () => {
   const [notes, setNotes] = useState("");
   const [quiz, setQuiz] = useState<any[]>([]);
   const [flashcards, setFlashcards] = useState<any[]>([]);
+  const [codingExercises, setCodingExercises] = useState<any[]>([]);
   const [currentMaterialId, setCurrentMaterialId] = useState<string | null>(null);
   
   const { toast } = useToast();
@@ -91,6 +92,15 @@ const Index = () => {
       if (flashcardsResponse.error) throw flashcardsResponse.error;
       setFlashcards(flashcardsResponse.data.result);
 
+      await new Promise((r) => setTimeout(r, 300));
+
+      // Generate coding exercises (if applicable)
+      const codingResponse = await supabase.functions.invoke("generate-study-content", {
+        body: { content, type: "coding" },
+      });
+      if (codingResponse.error) throw codingResponse.error;
+      setCodingExercises(codingResponse.data.result || []);
+
       toast({
         title: "Success!",
         description: "Study materials generated successfully.",
@@ -114,11 +124,15 @@ const Index = () => {
     setSaving(true);
     try {
       // Save generated content to database
-      const contentTypes = [
+      const contentTypes: Array<{ type: string; content: any }> = [
         { type: "notes", content: { notes } },
         { type: "quiz", content: { quiz } },
         { type: "flashcards", content: { flashcards } },
       ];
+
+      if (codingExercises.length > 0) {
+        contentTypes.push({ type: "coding", content: { codingExercises } });
+      }
 
       for (const item of contentTypes) {
         await supabase.from("generated_content").insert({
@@ -167,6 +181,9 @@ const Index = () => {
         } else if (item.content_type === "flashcards") {
           const content = item.content as { flashcards: any[] };
           setFlashcards(content.flashcards);
+        } else if (item.content_type === "coding") {
+          const content = item.content as { codingExercises: any[] };
+          setCodingExercises(content.codingExercises || []);
         }
       });
 
@@ -216,6 +233,7 @@ const Index = () => {
                 notes={notes}
                 quiz={quiz}
                 flashcards={flashcards}
+                codingExercises={codingExercises}
                 onSave={handleSave}
                 saving={saving}
               />
