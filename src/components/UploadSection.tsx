@@ -6,6 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import JSZip from "jszip";
+import { GlobalWorkerOptions, getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+// @ts-ignore - Vite will inline url for pdf.worker
+import pdfWorker from "pdfjs-dist/legacy/build/pdf.worker.min.js?url";
+
+GlobalWorkerOptions.workerSrc = pdfWorker as any;
 
 interface UploadSectionProps {
   onContentSubmit: (content: string, title: string, fileType?: string) => void;
@@ -20,22 +26,47 @@ export const UploadSection = ({ onContentSubmit, loading }: UploadSectionProps) 
 
   const parseDocument = async (file: File): Promise<string> => {
     try {
-      const fileArrayBuffer = await file.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(fileArrayBuffer).reduce(
-          (data, byte) => data + String.fromCharCode(byte),
-          ''
-        )
-      );
+      // PDF parsing
+      if (file.type === 'application/pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await getDocument({ data: arrayBuffer }).promise;
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const strings = (content.items as any[])
+            .map((it: any) => (typeof it?.str === 'string' ? it.str : ''))
+            .join(' ');
+          fullText += `\n\n--- Page ${i} ---\n${strings}`;
+        }
+        return fullText.trim();
+      }
 
-      // For PDF and PPT files, we'll need a simple extraction
-      // In a real application, you'd use a proper parsing service
-      const reader = new FileReader();
-      return new Promise((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsText(file);
-      });
+      // PPTX parsing
+      if (file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+        const arrayBuffer = await file.arrayBuffer();
+        const zip = await JSZip.loadAsync(arrayBuffer);
+        const slides = Object.keys(zip.files)
+          .filter((n) => n.startsWith('ppt/slides/slide') && n.endsWith('.xml'))
+          .sort((a, b) => {
+            const na = parseInt(a.match(/slide(\d+)\.xml/)?.[1] || '0', 10);
+            const nb = parseInt(b.match(/slide(\d+)\.xml/)?.[1] || '0', 10);
+            return na - nb;
+          });
+
+        let fullText = '';
+        for (const slide of slides) {
+          const xml = await zip.files[slide].async('string');
+          const matches = Array.from(xml.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g));
+          const text = matches.map((m) => m[1]).join(' ');
+          const slideNum = slide.match(/slide(\d+)\.xml/)?.[1] || '';
+          fullText += `\n\n--- Slide ${slideNum} ---\n${text}`;
+        }
+        return fullText.trim();
+      }
+
+      // Legacy .ppt not supported for text extraction here
+      return '';
     } catch (e) {
       console.error("Document parse error:", e);
       return "";
@@ -90,16 +121,26 @@ export const UploadSection = ({ onContentSubmit, loading }: UploadSectionProps) 
       if (file.type === 'text/plain') {
         text = await file.text();
       } else {
-        // Use document parser for PDF and PPT files
+        // Legacy .ppt is not supported for text extraction
+        if (file.type === 'application/vnd.ms-powerpoint') {
+          toast({
+            title: "Legacy PPT not supported",
+            description: "Please convert .ppt to PPTX (.pptx) or PDF, then upload.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         toast({
           title: "Processing file",
           description: "Extracting text from your document...",
         });
+
         text = await parseDocument(file);
         if (!text) {
           toast({
             title: "Could not read file",
-            description: "We couldn't extract text from this file. Try another file or paste the text.",
+            description: "We couldn't extract text. Try another file or paste the text.",
             variant: "destructive",
           });
           return;
